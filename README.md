@@ -7,6 +7,8 @@ This services is a python script to log sensor data to the systemd journal. I us
 - sensor.service should be installed in /etc/systemd/system
 - a venv should be setup inside /opt/sensor_service utilizing requirements.txt
 
+## Running
+
 to run, open a terminal and run pty_setup.sh to start the mock sensor and create the pty. Then manually activate the venv in the install directory (`source .venv/bin/activate`) and run python `sensor_service.py /tmp/ttyMOCK_PEER`
 
 ## Implementation Notes
