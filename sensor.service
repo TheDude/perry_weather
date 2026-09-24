@@ -1,0 +1,20 @@
+[Unit]
+Description=Sensor Logging Service
+#could probably be changed to an earlier boot sync stage
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+#the target environment isn't really specified, but I definitely know that this service isn't going to run as 'ben'
+User=ben
+#same here, not really specified where it should be installed to, but this works for now.
+WorkingDirectory=/opt/sensor_service
+ExecStart=/opt/sensor_service/.venv/bin/python -u /opt/sensor_service/sensor_service.py
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
