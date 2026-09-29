@@ -1,0 +1,55 @@
+# Weather sensor reader. The instance name is the systemd-escaped device path:
+#
+#   systemctl enable --now weather-sensor@dev-ttyUSB0.service
+#   systemctl enable --now "weather-sensor@$(systemd-escape --path /dev/serial/by-id/usb-FTDI_xyz-if00-port0).service"
+#
+# %f expands to the unescaped path ("/dev/ttyUSB0").
+
+[Unit]
+Description=Weather sensor reader on %f
+
+[Service]
+Type=notify
+# Extra flags per site via `systemctl edit weather-sensor@...`:
+#   [Service]
+#   Environment=WEATHER_ARGS="--stale-timeout 15000"
+ExecStart=/usr/local/bin/weather-sensor $WEATHER_ARGS %f
+Restart=on-failure
+RestartSec=2
+# The daemon pings every WatchdogSec/2 from its poll loop; a hang gets it restarted.
+WatchdogSec=30
+
+# ---- Least privilege ----
+# No root: a throwaway UID that is only allowed the serial device.
+DynamicUser=yes
+SupplementaryGroups=dialout
+DevicePolicy=closed
+DeviceAllow=%f rw
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
