@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # End-to-end run: socat pty pair <-> mock sensor <-> weather-sensor.
-# Usage: scripts/demo.sh [seconds] [extra weather-sensor args...]
+# Usage: scripts/demo.sh [seconds]
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-secs="${1:-20}"; shift || true
+secs="${1:-20}"
 dir="$(mktemp -d)"
 trap 'kill $(jobs -p) 2>/dev/null || true; wait 2>/dev/null; rm -rf "$dir"' EXIT
 
@@ -14,8 +14,7 @@ for _ in $(seq 50); do [[ -e "$dir/ttyMOCK" && -e "$dir/ttyMOCK_PEER" ]] && brea
 python3 "$here/mock.py" --serial "$dir/ttyMOCK" --sensor a --corrupt-prob "${CORRUPT:-0.2}" -v \
     2> >(sed 's/^/[mock] /' >&2) &
 
-PYTHONPATH="$here/.." python3 -m weather_sensor "$@" "$dir/ttyMOCK_PEER" &
+python3 "$here/../weather_sensor.py" "$dir/ttyMOCK_PEER" &
 svc=$!
 sleep "$secs"
-kill -USR1 "$svc"; sleep 0.2
-kill -TERM "$svc"; wait "$svc"
+kill -TERM "$svc"; wait "$svc" || true

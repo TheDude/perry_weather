@@ -1,0 +1,10 @@
+[Unit]
+Description=Weather sensor reader
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/weather-sensor/weather_sensor.py /dev/ttyUSB0
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
