@@ -18,7 +18,7 @@ def main():
                 if syncByte == b'\xAA\x55':
                     expected_crc = buffer[7:9]
                     ptype = buffer[2]
-                    if crc16_modbus(buffer[:7]) == int.from_bytes(expected_crc) and ptype in (0x01, 0x02):
+                    if crc16_modbus(buffer[:7]) == int.from_bytes(expected_crc, byteorder='little') and ptype in (0x01, 0x02):
                         if ptype == 0x01:
                             temp = buffer[3:5]
                             humidity = buffer[5:7]
