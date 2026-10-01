@@ -13,8 +13,7 @@ from typing import List, Optional
 
 from .frame_parser import FrameErrorEvent, FrameParser, Observation
 from .serial_port import open_serial
-from .sinks import LOG_ERR, LOG_INFO, LOG_NOTICE, LOG_WARNING, JournalSink, Sink, StderrSink
-from . import systemd
+from .sinks import LOG_ERR, LOG_INFO, LOG_NOTICE, LOG_WARNING, Sink
 
 POLL_MS = 50
 BACKOFF_MIN_S = 0.5
@@ -35,8 +34,6 @@ class Service:
         self._running = True
         self._stale = False
         self._last_good = self._last_rx = time.monotonic()
-        self._wd_interval = systemd.watchdog_interval()
-        self._last_wd = 0.0
 
         # Signals: handlers only record the signal number; the wakeup fd makes
         # poll() return immediately so they're handled in the main loop.
@@ -64,7 +61,6 @@ class Service:
     # ---- main loop -------------------------------------------------------
 
     def run(self) -> int:
-        systemd.notify("READY=1\nSTATUS=Starting")
         backoff = BACKOFF_MIN_S
         reported_open_failure = False
 
@@ -76,7 +72,6 @@ class Service:
                 # so an unplugged sensor doesn't flood the journal.
                 if not reported_open_failure:
                     self.sink.message(LOG_ERR, f"Cannot open {self.device}: {e} (retrying)")
-                    systemd.notify(f"STATUS=Waiting for {self.device}")
                     reported_open_failure = True
                 self._sleep(backoff)
                 backoff = min(backoff * 2, BACKOFF_MAX_S)
@@ -85,7 +80,6 @@ class Service:
             reported_open_failure = False
             backoff = BACKOFF_MIN_S
             self.sink.message(LOG_NOTICE, f"Opened {self.device} at {self.baud} 8N1")
-            systemd.notify(f"STATUS=Reading {self.device}")
             try:
                 self._read_loop()
             finally:
@@ -93,7 +87,6 @@ class Service:
                 self._fd = None
                 self.parser.reset()
 
-        systemd.notify("STOPPING=1")
         self.sink.message(LOG_NOTICE, f"Shutting down; stats: {self.parser.stats}")
         return 0
 
@@ -110,7 +103,6 @@ class Service:
         while self._running:
             events = dict(poller.poll(POLL_MS))
             now = time.monotonic()
-            self._kick_watchdog(now)
             self._handle_signals()
             if not self._running:
                 return
@@ -167,7 +159,7 @@ class Service:
                 self._running = False
 
     def _sleep(self, seconds: float) -> None:
-        """Sleep, waking early for signals and to keep the watchdog fed."""
+        """Sleep, waking early for signals."""
         deadline = time.monotonic() + seconds
         poller = select.poll()
         poller.register(self._sig_r.fileno(), select.POLLIN)
@@ -175,17 +167,8 @@ class Service:
             now = time.monotonic()
             if now >= deadline:
                 return
-            self._kick_watchdog(now)
-            left = deadline - now
-            if self._wd_interval:
-                left = min(left, self._wd_interval)
-            poller.poll(int(left * 1000) + 1)
+            poller.poll(int((deadline - now) * 1000) + 1)
             self._handle_signals()
-
-    def _kick_watchdog(self, now: float) -> None:
-        if self._wd_interval and now - self._last_wd >= self._wd_interval:
-            systemd.notify("WATCHDOG=1")
-            self._last_wd = now
 
 
 def _positive_ms(s: str) -> float:
@@ -198,7 +181,7 @@ def _positive_ms(s: str) -> float:
 def main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(
         prog="weather-sensor",
-        description="Read weather observations from a serial sensor and log them to the journal.")
+        description="Read weather observations from a serial sensor and log them to stdout (the journal, under systemd).")
     p.add_argument("device", nargs="?", default=os.environ.get("WEATHER_TTY"),
                    help="serial tty (default: $WEATHER_TTY)")
     p.add_argument("-b", "--baud", type=int, default=9600, help="baud rate (default 9600)")
@@ -206,11 +189,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                    help="warn if no valid frame for MS (default 10000)")
     p.add_argument("-g", "--frame-gap", type=_positive_ms, default=0.1, metavar="MS",
                    help="drop a partial frame after MS of silence (default 100)")
-    p.add_argument("-e", "--stderr", action="store_true",
-                   help="log to stderr instead of the journal")
     args = p.parse_args(argv)
     if not args.device:
         p.error("no device given (argument or $WEATHER_TTY)")
 
-    sink: Sink = StderrSink() if args.stderr else JournalSink(args.device)
-    return Service(args.device, args.baud, sink, args.stale_timeout, args.frame_gap).run()
+    return Service(args.device, args.baud, Sink(), args.stale_timeout, args.frame_gap).run()

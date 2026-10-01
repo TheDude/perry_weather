@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # End-to-end run: socat pty pair <-> mock sensor <-> weather-sensor.
 # Usage: scripts/demo.sh [seconds] [extra weather-sensor args...]
-# Logs to stderr so it works without journald.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -15,7 +14,7 @@ for _ in $(seq 50); do [[ -e "$dir/ttyMOCK" && -e "$dir/ttyMOCK_PEER" ]] && brea
 python3 "$here/mock.py" --serial "$dir/ttyMOCK" --sensor a --corrupt-prob "${CORRUPT:-0.2}" -v \
     2> >(sed 's/^/[mock] /' >&2) &
 
-PYTHONPATH="$here/.." python3 -m weather_sensor --stderr "$@" "$dir/ttyMOCK_PEER" &
+PYTHONPATH="$here/.." python3 -m weather_sensor "$@" "$dir/ttyMOCK_PEER" &
 svc=$!
 sleep "$secs"
 kill -USR1 "$svc"; sleep 0.2

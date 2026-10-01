@@ -9,7 +9,8 @@
 Description=Weather sensor reader on %f
 
 [Service]
-Type=notify
+# stdout goes to the journal (the default); <N> line prefixes set PRIORITY.
+Type=exec
 # Extra flags per site via `systemctl edit weather-sensor@...`:
 #   [Service]
 #   Environment=WEATHER_ARGS="--stale-timeout 15000"
@@ -17,8 +18,6 @@ Type=notify
 ExecStart=/usr/local/bin/weather-sensor $WEATHER_ARGS %f
 Restart=on-failure
 RestartSec=2
-# The daemon pings every WatchdogSec/2 from its poll loop; a hang gets it restarted.
-WatchdogSec=30
 
 # ---- Least privilege ----
 # No root: a throwaway UID that is only allowed the serial device.

@@ -1,1 +1,1 @@
-"""Weather sensor reader: serial tty -> systemd journal."""
+"""Weather sensor reader: serial tty -> stdout (the journal, under systemd)."""
